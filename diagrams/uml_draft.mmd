@@ -1,0 +1,36 @@
+classDiagram
+    class Owner {
+        +str name
+        +int age
+        +update_info()
+    }
+
+    class Pet {
+        +str name
+        +int age
+        +str breed
+        +Owner owner
+        +update_info()
+    }
+
+    class Task {
+        +str task_type
+        +int time_to_complete
+        +str priority
+        +Pet pet
+        +change_priority()
+    }
+
+    class Schedule {
+        +List~Task~ tasks
+        +Owner owner
+        +int time_available
+        +create_schedule(tasks, time_available)
+        +update_schedule()
+        +explain()
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has care tasks
+    Owner "1" --> "*" Schedule : plans
+    Schedule "1" --> "*" Task : includes
