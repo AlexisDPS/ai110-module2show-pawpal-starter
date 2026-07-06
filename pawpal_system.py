@@ -9,15 +9,18 @@ class Owner:
         self.pets: List["Pet"] = []
 
     def add_pet(self, pet: "Pet"):
+        """Add a pet to this owner's list of pets."""
         self.pets.append(pet)
 
     def get_all_tasks(self) -> List["Task"]:
+        """Return a combined list of tasks from all of this owner's pets."""
         all_tasks = []
         for pet in self.pets:
             all_tasks.extend(pet.tasks)
         return all_tasks
 
     def update_info(self):
+        """Update the owner's stored information."""
         pass
 
 
@@ -30,9 +33,11 @@ class Pet:
     tasks: List["Task"] = field(default_factory=list)
 
     def add_task(self, task: "Task"):
+        """Add a task to this pet's list of tasks."""
         self.tasks.append(task)
 
     def update_info(self):
+        """Update the pet's stored information."""
         pass
 
 
@@ -46,9 +51,11 @@ class Task:
     is_completed: bool = False
 
     def change_priority(self, new_priority: str):
+        """Update this task's priority level."""
         self.priority = new_priority
 
-    def mark_completed(self):
+    def mark_complete(self):
+        """Mark this task as completed."""
         self.is_completed = True
 
 
@@ -59,6 +66,7 @@ class Schedule:
         self.scheduled_tasks: List[Task] = []
 
     def create_schedule(self):
+        """Build the day's schedule from the owner's pending tasks within the available time."""
         all_tasks = self.owner.get_all_tasks()
         pending_tasks = [task for task in all_tasks if not task.is_completed]
 
@@ -78,9 +86,11 @@ class Schedule:
         return self.scheduled_tasks
 
     def update_schedule(self):
+        """Rebuild the schedule to reflect any changes to tasks."""
         self.create_schedule()
 
     def explain(self):
+        """Return a human-readable reason for each task in the current schedule."""
         explanations = []
         for task in self.scheduled_tasks:
             explanations.append(

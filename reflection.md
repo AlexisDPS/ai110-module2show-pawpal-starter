@@ -2,15 +2,24 @@
 
 ## 1. System Design
 
+-3 core actions
+Add a task
+Change task priority
+Change constraints
+
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+  My initial UML design uses four classes to represent the owner, pet, tasks, and schedule. The classes are connected to organize pet care information and generate a daily plan.
 - What classes did you include, and what responsibilities did you assign to each?
+  I included four classes: Owner, Pet, Task, and Schedule. The Owner class stores the owner's information. The Pet class stores information about each pet. The Task class stores pet care tasks, including their duration and priority. The Schedule class is responsible for organizing tasks into a daily plan based on the available time.
 
 **b. Design changes**
 
 - Did your design change during implementation?
+  Yes
 - If yes, describe at least one change and why you made it.
+  I added a pets list to the Owner class so multiple pets can be stored by an owner. This matches how I laid out my UML design and will make scheduling easier later on.
 
 ---
 
