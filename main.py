@@ -1,6 +1,35 @@
+import sys
 from datetime import datetime
 
+from tabulate import tabulate
+
 from pawpal_system import Owner, Pet, Task, Schedule
+
+# Ensure emoji print correctly even on Windows terminals that default to cp1252.
+sys.stdout.reconfigure(encoding="utf-8")
+
+PRIORITY_LABELS = {"high": "🔴 High", "medium": "🟡 Medium", "low": "🟢 Low"}
+
+
+def priority_label(priority: str) -> str:
+    """Return a priority string with a color-coded emoji."""
+    return PRIORITY_LABELS.get(priority, priority)
+
+
+def status_label(is_completed: bool) -> str:
+    """Return a status string with a checkmark or hourglass emoji."""
+    return "✅ Done" if is_completed else "⏳ Pending"
+
+
+def print_table(rows: list, title: str):
+    """Print a section title followed by a table (or a friendly empty message)."""
+    print(f"\n{title}")
+    print("-" * len(title))
+    if rows:
+        print(tabulate(rows, headers="keys", tablefmt="grid"))
+    else:
+        print("(nothing to show)")
+
 
 owner = Owner(name="Jordan", age=30)
 
@@ -26,33 +55,82 @@ mochi.tasks[1].mark_complete()
 schedule = Schedule(owner=owner, time_available=60)
 schedule.create_schedule()
 
-print("Today's Schedule")
-print("-----------------")
-for reason in schedule.explain():
-    print(reason)
+print("=" * 50)
+print("🐾  PawPal+ Daily Schedule")
+print("=" * 50)
 
-print("\nAll Tasks Sorted by Time")
-print("-------------------------")
-for task in schedule.sort_by_time(owner.get_all_tasks()):
-    print(f"{task.pet.name}: {task.task_type} ({task.time_to_complete} min)")
+print_table(
+    [
+        {
+            "Pet": t.pet.name,
+            "Task": t.task_type,
+            "Priority": priority_label(t.priority),
+            "Time (min)": t.time_to_complete,
+        }
+        for t in schedule.scheduled_tasks
+    ],
+    "📅 Today's Schedule",
+)
 
-print("\nCompleted Tasks")
-print("----------------")
-for task in schedule.filter_tasks(is_completed=True):
-    print(f"{task.pet.name}: {task.task_type}")
+print_table(
+    [
+        {"Pet": t.pet.name, "Task": t.task_type, "Time (min)": t.time_to_complete}
+        for t in schedule.sort_by_time(owner.get_all_tasks())
+    ],
+    "⏱️  All Tasks Sorted by Time",
+)
 
-print("\nMochi's Tasks")
-print("--------------")
-for task in schedule.filter_tasks(pet_name="Mochi"):
-    status = "done" if task.is_completed else "pending"
-    due = task.due_date.strftime("%Y-%m-%d")
-    print(f"{task.task_type} ({status}, due {due})")
+print_table(
+    [
+        {
+            "Pet": t.pet.name,
+            "Task": t.task_type,
+            "Priority": priority_label(t.priority),
+            "Time (min)": t.time_to_complete,
+        }
+        for t in schedule.sort_by_priority(owner.get_all_tasks())
+    ],
+    "🥇 All Tasks Sorted by Priority (then Time)",
+)
 
-print("\nScheduling Conflicts")
-print("---------------------")
+print_table(
+    [
+        {"Pet": t.pet.name, "Task": t.task_type, "Status": status_label(t.is_completed)}
+        for t in schedule.filter_tasks(is_completed=True)
+    ],
+    "✅ Completed Tasks",
+)
+
+print_table(
+    [
+        {
+            "Task": t.task_type,
+            "Status": status_label(t.is_completed),
+            "Due": t.due_date.strftime("%Y-%m-%d"),
+        }
+        for t in schedule.filter_tasks(pet_name="Mochi")
+    ],
+    "🐱 Mochi's Tasks",
+)
+
+print("\n⚠️  Scheduling Conflicts")
+print("-" * 24)
 warnings = schedule.find_conflicts()
 if warnings:
     for warning in warnings:
-        print(warning)
+        print(f"⚠️  {warning}")
 else:
-    print("No conflicts found.")
+    print("✅ No conflicts found.")
+
+print("\n🕒 Next Available Slot")
+print("-" * 22)
+next_slot = schedule.next_available_slot()
+print(f"You're free again at {next_slot.strftime('%Y-%m-%d %H:%M')}.")
+
+print("\n💾 Saving Data")
+print("-" * 14)
+owner.save_to_json()
+print("✅ Saved owner, pets, and tasks to data.json")
+
+reloaded_owner = Owner.load_from_json()
+print(f"✅ Reloaded '{reloaded_owner.name}' with {len(reloaded_owner.pets)} pet(s) from data.json")

@@ -2,6 +2,19 @@ import streamlit as st
 
 from pawpal_system import Owner, Pet, Task, Schedule
 
+PRIORITY_LABELS = {"high": "🔴 High", "medium": "🟡 Medium", "low": "🟢 Low"}
+
+
+def priority_label(priority: str) -> str:
+    """Return a priority string with a color-coded emoji."""
+    return PRIORITY_LABELS.get(priority, priority)
+
+
+def status_label(is_completed: bool) -> str:
+    """Return a status string with a checkmark or hourglass emoji."""
+    return "✅ Done" if is_completed else "⏳ Pending"
+
+
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
@@ -44,7 +57,11 @@ st.subheader("Quick Demo Inputs (UI only)")
 owner_name = st.text_input("Owner name", value="Jordan")
 
 if "owner" not in st.session_state:
-    st.session_state.owner = Owner(name=owner_name, age=0)
+    try:
+        st.session_state.owner = Owner.load_from_json()
+        st.toast("Loaded saved data from data.json")
+    except FileNotFoundError:
+        st.session_state.owner = Owner(name=owner_name, age=0)
 owner = st.session_state.owner
 
 st.markdown("### Pets")
@@ -61,10 +78,12 @@ with col3:
 if st.button("Add pet"):
     pet = Pet(name=pet_name, age=0, breed=breed, owner=owner)
     owner.add_pet(pet)
+    owner.save_to_json()
+    st.success(f"🐾 Added {pet_name} ({breed})")
 
 if owner.pets:
-    st.write("Current pets:")
-    st.table([{"name": p.name, "breed": p.breed} for p in owner.pets])
+    st.write("**Current pets:**")
+    st.table([{"Name": p.name, "Breed": p.breed} for p in owner.pets])
 else:
     st.info("No pets yet. Add one above.")
 
@@ -92,17 +111,20 @@ if owner.pets:
             pet=selected_pet,
         )
         selected_pet.add_task(task)
+        owner.save_to_json()
+        st.success(f"📝 Added '{task_title}' for {selected_pet.name}")
 
     all_tasks = owner.get_all_tasks()
     if all_tasks:
-        st.write("Current tasks:")
+        st.write("**Current tasks:**")
         st.table(
             [
                 {
-                    "pet": t.pet.name,
-                    "title": t.task_type,
-                    "duration_minutes": t.time_to_complete,
-                    "priority": t.priority,
+                    "Pet": t.pet.name,
+                    "Task": t.task_type,
+                    "Duration (min)": t.time_to_complete,
+                    "Priority": priority_label(t.priority),
+                    "Status": status_label(t.is_completed),
                 }
                 for t in all_tasks
             ]
@@ -114,7 +136,7 @@ else:
 
 st.divider()
 
-st.subheader("Build Schedule")
+st.subheader("📅 Build Schedule")
 st.caption("Generate today's schedule from the owner's pets and tasks.")
 
 time_available = st.number_input("Time available (minutes)", min_value=1, max_value=1440, value=60)
@@ -123,6 +145,75 @@ if st.button("Generate schedule"):
     schedule = Schedule(owner=st.session_state.owner, time_available=int(time_available))
     schedule.create_schedule()
 
-    st.write("Today's Schedule:")
-    for reason in schedule.explain():
-        st.write(f"- {reason}")
+    if schedule.scheduled_tasks:
+        st.success(f"✅ Schedule created with {len(schedule.scheduled_tasks)} task(s)!")
+        st.table(
+            [
+                {
+                    "Pet": t.pet.name,
+                    "Task": t.task_type,
+                    "Priority": priority_label(t.priority),
+                    "Duration (min)": t.time_to_complete,
+                }
+                for t in schedule.scheduled_tasks
+            ]
+        )
+    else:
+        st.info("No tasks fit in the available time.")
+
+    next_slot = schedule.next_available_slot()
+    st.write(f"🕒 **Next available slot:** {next_slot.strftime('%Y-%m-%d %H:%M')}")
+
+    st.markdown("#### ⏱️ Tasks Sorted by Time")
+    time_sorted_tasks = schedule.sort_by_time(owner.get_all_tasks())
+    if time_sorted_tasks:
+        st.table(
+            [
+                {
+                    "Pet": t.pet.name,
+                    "Task": t.task_type,
+                    "Priority": priority_label(t.priority),
+                    "Duration (min)": t.time_to_complete,
+                }
+                for t in time_sorted_tasks
+            ]
+        )
+    else:
+        st.info("No tasks to sort yet.")
+
+    st.markdown("#### 🥇 Tasks Sorted by Priority (then Time)")
+    priority_sorted_tasks = schedule.sort_by_priority(owner.get_all_tasks())
+    if priority_sorted_tasks:
+        st.table(
+            [
+                {
+                    "Pet": t.pet.name,
+                    "Task": t.task_type,
+                    "Priority": priority_label(t.priority),
+                    "Duration (min)": t.time_to_complete,
+                }
+                for t in priority_sorted_tasks
+            ]
+        )
+    else:
+        st.info("No tasks to sort yet.")
+
+    st.markdown("#### ⏳ Pending Tasks")
+    pending_tasks = schedule.filter_tasks(is_completed=False)
+    if pending_tasks:
+        st.table(
+            [
+                {"Pet": t.pet.name, "Task": t.task_type, "Priority": priority_label(t.priority)}
+                for t in pending_tasks
+            ]
+        )
+    else:
+        st.info("No pending tasks.")
+
+    st.markdown("#### ⚠️ Scheduling Conflicts")
+    conflicts = schedule.find_conflicts()
+    if conflicts:
+        for warning in conflicts:
+            st.warning(warning)
+    else:
+        st.success("✅ No scheduling conflicts found.")

@@ -1,6 +1,10 @@
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List
+
+DEFAULT_DATA_FILE = "data.json"
+PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
 class Owner:
@@ -23,6 +27,57 @@ class Owner:
     def update_info(self):
         """Update the owner's stored information."""
         pass
+
+    def save_to_json(self, filepath: str = DEFAULT_DATA_FILE):
+        """Save this owner, their pets, and all tasks to a JSON file."""
+        data = {
+            "name": self.name,
+            "age": self.age,
+            "pets": [
+                {
+                    "name": pet.name,
+                    "age": pet.age,
+                    "breed": pet.breed,
+                    "tasks": [
+                        {
+                            "task_type": task.task_type,
+                            "time_to_complete": task.time_to_complete,
+                            "priority": task.priority,
+                            "frequency": task.frequency,
+                            "is_completed": task.is_completed,
+                            "due_date": task.due_date.isoformat(),
+                        }
+                        for task in pet.tasks
+                    ],
+                }
+                for pet in self.pets
+            ],
+        }
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+
+    @staticmethod
+    def load_from_json(filepath: str = DEFAULT_DATA_FILE) -> "Owner":
+        """Load an owner, their pets, and all tasks back from a JSON file."""
+        with open(filepath) as f:
+            data = json.load(f)
+
+        owner = Owner(name=data["name"], age=data["age"])
+        for pet_data in data["pets"]:
+            pet = Pet(name=pet_data["name"], age=pet_data["age"], breed=pet_data["breed"], owner=owner)
+            owner.add_pet(pet)
+            for task_data in pet_data["tasks"]:
+                task = Task(
+                    task_type=task_data["task_type"],
+                    time_to_complete=task_data["time_to_complete"],
+                    priority=task_data["priority"],
+                    pet=pet,
+                    frequency=task_data["frequency"],
+                    is_completed=task_data["is_completed"],
+                    due_date=datetime.fromisoformat(task_data["due_date"]),
+                )
+                pet.add_task(task)
+        return owner
 
 
 @dataclass
@@ -89,12 +144,19 @@ class Schedule:
         """Sort tasks by how long they take to complete, shortest first."""
         return sorted(tasks, key=lambda task: task.time_to_complete)
 
+    def sort_by_priority(self, tasks: List[Task]) -> List[Task]:
+        """Sort tasks by priority (high, then medium, then low). Ties go to the shorter task."""
+        return sorted(
+            tasks,
+            key=lambda task: (PRIORITY_ORDER.get(task.priority, len(PRIORITY_ORDER)), task.time_to_complete),
+        )
+
     def create_schedule(self):
         """Build the day's schedule from the owner's pending tasks within the available time."""
         all_tasks = self.owner.get_all_tasks()
         pending_tasks = [task for task in all_tasks if not task.is_completed]
 
-        sorted_tasks = self.sort_by_time(pending_tasks)
+        sorted_tasks = self.sort_by_priority(pending_tasks)
 
         self.scheduled_tasks = []
         remaining_time = self.time_available
@@ -138,6 +200,11 @@ class Schedule:
     def update_schedule(self):
         """Rebuild the schedule to reflect any changes to tasks."""
         self.create_schedule()
+
+    def next_available_slot(self) -> datetime:
+        """Return when the owner is free again after finishing today's scheduled tasks."""
+        minutes_used = sum(task.time_to_complete for task in self.scheduled_tasks)
+        return datetime.now() + timedelta(minutes=minutes_used)
 
     def explain(self):
         """Return a human-readable reason for each task in the current schedule."""
